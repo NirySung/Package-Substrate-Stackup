@@ -1,52 +1,50 @@
 # ==============================================================================
-# SBT 基準面生成：支援 24 層 (或任意層數)
+# SBT 基準面生成：絕對座標原生版 (支援任意層數與厚度)
 # ==============================================================================
 
-# 在這裡填入你的 24 層厚度數值 (um)
-# 範例：[L1_thick, L2_thick, ..., L24_thick]
-layer_thicknesses = [
-    25, 35, 10, 15, 20, 25, 30, 35, # 1-8 層
-    10, 15, 20, 25, 30, 35, 10, 15, # 9-16 層
-    20, 25, 30, 35, 10, 15, 20, 25  # 17-24 層
-]
+# 在這裡輸入你的層厚度數據 (um)
+# 你可以隨時改成 9 層、24 層或任何組合
+layer_thicknesses = [15, 18, 35, 25, 1280, 25, 35, 18, 15]
 
-def generate_multi_layer_planes():
+def generate_sbt_planes_final():
     doc = DocumentHelper.GetActiveDocument()
+    part = doc.MainPart
     
-    # 取得起始選取 (請點選總高實體的頂面)
-    current_sel = Window.ActiveWindow.ActiveContext.Selection
-    if current_sel.Count == 0:
-        base_ref = Selection.Create(doc.MainPart)
-    else:
-        base_ref = Selection.Create(current_sel[0])
-
     accumulated_z_um = 0
-    print(">>> 開始為 {} 層結構生成基準面...".format(len(layer_thicknesses)))
+    num_layers = len(layer_thicknesses)
+    
+    print(">>> 偵測到 {} 層結構，準備生成 {} 片基準面...".format(num_layers, num_layers - 1))
 
-    # 生成 (N-1) 個基準面
-    for i in range(len(layer_thicknesses) - 1):
+    for i in range(num_layers - 1):
         thick = layer_thicknesses[i]
-        accumulated_z_um -= thick
+        accumulated_z_um -= thick  # 深度累加
         
         try:
-            plane_result = DatumPlaneCreator.Create(base_ref, False)
-            if plane_result.CreatedPlanes.Count > 0:
-                new_plane = plane_result.CreatedPlanes[0]
-                
-                # 移動位置 (除以 1000 修正 V241 API 的 mm/um 誤差)
-                options = MoveOptions()
-                move_dist = float(accumulated_z_um) / 1000.0
-                Move.Translate(Selection.Create(new_plane), Direction.DirZ, move_dist, options)
-                
-                new_plane.Name = "Cutter_L{}_L{}_Z{}um".format(i+1, i+2, accumulated_z_um)
-            else:
-                print("警告：第 {} 片面建立失敗".format(i+1))
-                
+            # 1. 直接計算空間中的絕對位置 (um 轉 mm)
+            z_mm = float(accumulated_z_um) / 1000.0
+            origin = Point.Create(0, 0, z_mm)
+            
+            # 2. 定義平面的座標框架 (XY 平面，法向量為 Z)
+            frame = Frame.Create(origin, Direction.DirX, Direction.DirY)
+            geom_plane = Plane.Create(frame)
+            
+            # 3. 使用原生指令建立基準面 (最穩定的 API 調用)
+            name = "L{}_L{}_Z{}um".format(i+1, i+2, abs(accumulated_z_um))
+            new_datum = DatumPlane.Create(part, name, geom_plane)
+            
+            if new_datum:
+                print("成功生成: " + name)
+            
         except Exception as ex:
-            print("錯誤: {}".format(str(ex)))
-            break
+            print("第 {} 片面生成出錯: {}".format(i+1, str(ex)))
 
-    print(">>> 24 層切割面全部生成完畢！")
+    print(">>> 基準面全部生成完畢！請手動執行 Split Body。")
 
-# 執行
-generate_multi_layer_planes()
+# 執行指令
+generate_sbt_planes_final()
+
+# Slice Bodies by Plane
+selection = Body2
+datum = Selection.Create(DatumPlane84, DatumPlane85, DatumPlane86, DatumPlane87, DatumPlane88, DatumPlane89, DatumPlane90, DatumPlane91)
+result = SplitBody.ByCutter(selection, datum, Info1)
+# EndBlock
