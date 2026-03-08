@@ -42,9 +42,3 @@ def generate_sbt_planes_final():
 
 # 執行指令
 generate_sbt_planes_final()
-
-# Slice Bodies by Plane
-selection = Body2
-datum = Selection.Create(DatumPlane84, DatumPlane85, DatumPlane86, DatumPlane87, DatumPlane88, DatumPlane89, DatumPlane90, DatumPlane91)
-result = SplitBody.ByCutter(selection, datum, Info1)
-# EndBlock
